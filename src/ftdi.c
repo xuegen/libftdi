@@ -2549,6 +2549,9 @@ static unsigned char type2bit(unsigned char type, enum ftdi_chip_type chip)
     Output is suitable for ftdi_write_eeprom().
 
     \param ftdi pointer to ftdi_context
+    \param nval number of user data entries.
+    \param addr array of user data address
+    \param val  array of user data value
 
     \retval >=0: size of eeprom user area in bytes
     \retval -1: eeprom size (128 bytes) exceeded by custom strings
@@ -2558,7 +2561,7 @@ static unsigned char type2bit(unsigned char type, enum ftdi_chip_type chip)
     \retval -5: Chip doesn't support high current drive         (FIXME: Not in the code?)
     \retval -6: No connected EEPROM or EEPROM Type unknown
 */
-int ftdi_eeprom_build(struct ftdi_context *ftdi)
+int ftdi_eeprom_build(struct ftdi_context *ftdi, int nval, int* addr, unsigned char* val)
 {
     unsigned char i, j, eeprom_size_mask;
     unsigned short checksum, value;
@@ -3072,6 +3075,15 @@ int ftdi_eeprom_build(struct ftdi_context *ftdi)
             }
             output[0x0b] = eeprom->invert;
             break;
+    }
+
+    // set user data if needed.
+    for (int i = 0; i < nval; ++i) {
+        output[addr[i]] = val[i];
+    }
+
+    for (int i = 0; i < 128; ++i) {
+        fprintf(stdout, "buf[0x%x] = 0x%x\n", i, output[i]);
     }
 
     // calculate checksum

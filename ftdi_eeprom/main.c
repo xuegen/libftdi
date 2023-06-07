@@ -39,6 +39,7 @@
 #include <confuse.h>
 #include <libusb.h>
 #include <ftdi.h>
+#include <ftdi_i.h>
 #include <ftdi_eeprom_version.h>
 
 static int parse_cbus(cfg_t *cfg, cfg_opt_t *opt, const char *value, void *result)
@@ -186,6 +187,8 @@ static void usage(const char *program)
     fprintf(stderr, "--read-eeprom           Read eeprom and write to -filename- from config-file\n");
     fprintf(stderr, "--erase-eeprom          Erase eeprom\n");
     fprintf(stderr, "--flash-eeprom          Flash eeprom\n");
+    fprintf(stderr, "-u       use user data [0x1a-0x1d] = 0x04,0x00,0x4a,0x58\n");
+    fprintf(stderr, "--user-data '{addr: val, addr: val, ...}' specify user data\n");
 }
 
 int main(int argc, char *argv[])
@@ -251,6 +254,7 @@ int main(int argc, char *argv[])
         CFG_BOOL("chb_rs485", cfg_false, 0),
         CFG_BOOL("chc_rs485", cfg_false, 0),
         CFG_BOOL("chd_rs485", cfg_false, 0),
+	CFG_STR("user_data", NULL, 0),
         CFG_END()
     };
     cfg_t *cfg;
@@ -270,6 +274,7 @@ int main(int argc, char *argv[])
     int my_eeprom_size = 0;
     unsigned char *eeprom_buf = NULL;
     char *filename;
+    char *user_data = NULL;
     int size_check;
     int i;
     FILE *fp;
@@ -279,6 +284,9 @@ int main(int argc, char *argv[])
     printf("\nFTDI eeprom generator v%s\n", EEPROM_VERSION_STRING);
     printf ("(c) Intra2net AG and the libftdi developers <opensource@intra2net.com>\n");
 
+    int nval = 0;
+    int* addr_ptr = NULL;
+    unsigned char* val_ptr = NULL;
     for (i = 1; i < argc; i++) {
         if (*argv[i] != '-')
         {
@@ -293,6 +301,31 @@ int main(int argc, char *argv[])
             }
             device_description = argv[++i];
         }
+	else if (!strcmp(argv[i], "-u"))
+	{
+	    if (user_data) {
+                fprintf(stderr, "--user-data was already specified, -u flag ignored\n");
+		continue;
+	    }
+	    // use default user data.
+	    int kuser_data = 4;
+	    int user_data_addr[] = {0x1a, 0x1b, 0x1c, 0x1d};
+            unsigned char user_data_val[] = {0x04,0x00,0x4a,0x58};
+	    addr_ptr = (int*)malloc(sizeof(int)*kuser_data);
+	    val_ptr  = (unsigned char*)malloc(kuser_data);
+	    memcpy(addr_ptr, user_data_addr, sizeof(int)*kuser_data);
+	    memcpy(val_ptr,  user_data_val, kuser_data);
+	    nval = kuser_data;
+	}
+	else if (!strcmp(argv[i], "--user-data"))
+	{
+	    if (i+1 >= argc)
+	    {
+                usage(argv[0]);
+		exit(-1);
+	    }
+	    user_data = argv[++i];
+	}
         else if (!strcmp(argv[i], "--read-eeprom"))
         {
             command = COMMAND_READ;
@@ -320,7 +353,7 @@ int main(int argc, char *argv[])
 
     if ((fp = fopen(cfg_filename, "r")) == NULL)
     {
-        printf ("Can't open configuration file\n");
+        printf ("Can't open configuration file %s\n", cfg_filename);
         exit (-1);
     }
     fclose (fp);
@@ -328,6 +361,59 @@ int main(int argc, char *argv[])
     cfg = cfg_init(opts, 0);
     cfg_parse(cfg, cfg_filename);
     filename = cfg_getstr(cfg, "filename");
+
+    // read user-data from config file only if not specified on command line.
+    // user_data precedence: --user-data, -u, config file.
+    if (!nval && !user_data) {
+	user_data = cfg_getstr(cfg, "user_data");
+    }
+
+    if (user_data) {
+        // extract user data
+	// count number of entries first.
+        int len = strlen(user_data);
+	// fprintf(stdout, "get user data n: %d, %s\n", len, user_data);
+        nval = 1;
+        for(int i = 0; i < len; ++i) {
+            if (user_data[i] == ',') { ++nval; }
+        }
+
+        char* start = strchr(user_data, '{');
+        char* end = strchr(user_data, '}');
+        if (!start || !end || start > end) {
+            fprintf(stderr, "wrong user_data option format, no matching braces found\n");
+            usage(argv[0]);
+	    exit(-1);
+        }
+        addr_ptr = (int*) malloc(sizeof(int)*nval);
+        val_ptr  = (unsigned char*)malloc(nval);
+        ++start; // skip the '{'
+        char* token = strtok(start, ",");
+        int ii = 0;
+        while(token != NULL) {
+            char* ps = strchr(token, ':');
+            if (!ps) {
+                fprintf(stderr, "wrong user_data option format, no addr: val pair found in %s\n", token);
+                usage(argv[0]);
+                free(addr_ptr);
+                free(val_ptr);
+		exit(-1);
+            }
+            int addr = strtoul(token, NULL, 0);
+            if (addr >= FTDI_MAX_EEPROM_SIZE) {
+                fprintf(stderr, "addr %d is out of eeprom range %d\n", addr, FTDI_MAX_EEPROM_SIZE);
+                usage(argv[0]);
+                free(addr_ptr);
+                free(val_ptr);
+		exit(-1);
+            }
+            addr_ptr[ii] = addr;
+            val_ptr[ii]  = (unsigned char) strtoul(ps+1, NULL, 0);
+            // fprintf(stdout, "nval: %d, token: %s, addr = %u, val: 0x%x\n", nval, token, addr_ptr[ii], val_ptr[ii]);
+            token = strtok(NULL, ",");
+            ++ii;
+        }
+    }
 
     if (cfg_getbool(cfg, "self_powered") && cfg_getint(cfg, "max_power") > 0)
         printf("Hint: Self powered devices should have a max_power setting of 0.\n");
@@ -509,8 +595,18 @@ int main(int argc, char *argv[])
         printf("FTDI erase eeprom: %d\n", ftdi_erase_eeprom(ftdi));
     }
 
-    size_check = ftdi_eeprom_build(ftdi);
+    /*
+    for (int i = 0; i < nval; ++i) {
+	fprintf(stdout, "user data [0x%x] = 0x%x\n", addr_ptr[i], val_ptr[i]);
+    }
+    */
+    size_check = ftdi_eeprom_build(ftdi, nval, addr_ptr, val_ptr);
     eeprom_get_value(ftdi, CHIP_SIZE, &my_eeprom_size);
+    if (nval) {
+	free(addr_ptr); addr_ptr = NULL;
+	free(val_ptr);  val_ptr = NULL;
+	nval = 0;
+    }
 
     if (size_check == -1)
     {

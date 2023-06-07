@@ -10,6 +10,24 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <ftdi.h>
+#include <ftdi_i.h>
+
+static void usage(char** argv) {
+    fprintf(stderr, "usage: %s [options]\n", *argv);
+    fprintf(stderr, "\t-d[num] Work with default valuesfor 128 Byte "
+            "EEPROM or for 256 Byte EEPROM if some [num] is given\n");
+    fprintf(stderr, "\t-w write\n");
+    fprintf(stderr, "\t-e erase\n");
+    fprintf(stderr, "\t-v verbose decoding\n");
+    fprintf(stderr, "\t-p <number> Search for device with PID == number\n");
+    fprintf(stderr, "\t-u['{addr: val, addr: val, ...}'] sets eeprom value at given addresses."
+            "if values not specified, [0x1a-0x1d] = 0x04,0x00,0x4a,0x58 will be used\n");
+    fprintf(stderr, "\t-v <number> Search for device with VID == number\n");
+    fprintf(stderr, "\t-P <string? Search for device with given "
+            "product description\n");
+    fprintf(stderr, "\t-S <string? Search for device with given "
+            "serial number\n");
+}
 
 int read_decode_eeprom(struct ftdi_context *ftdi)
 {
@@ -78,10 +96,15 @@ int main(int argc, char **argv)
     char const *serial  = 0;
     int erase = 0;
     int use_defaults = 0;
+    int user_data = 0;  /* user data for eeprom */
     int large_chip = 0;
     int do_write = 0;
     int retval = 0;
     int value;
+    int user_data_addr[4] = {0x1a, 0x1b, 0x1c, 0x1d};
+    unsigned char user_data_val[4] = {0x04,0x00,0x4a,0x58};
+    int* addr_ptr = NULL;
+    unsigned char* val_ptr = NULL;
 
     if ((ftdi = ftdi_new()) == 0)
     {
@@ -90,7 +113,7 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    while ((i = getopt(argc, argv, "d::ev:p:l:P:S:w")) != -1)
+    while ((i = getopt(argc, argv, "du::ev:p:l:P:S:u:w")) != -1)
     {
         switch (i)
         {
@@ -114,27 +137,78 @@ int main(int argc, char **argv)
             case 'S':
                 serial = optarg;
                 break;
+            case 'u':
+                if (optarg) {
+		    int len = strlen(optarg);
+		    int count = 1;
+		    for(int i = 0; i < len; ++i) {
+			if (optarg[i] == ',') { ++count; }
+                    }
+
+		    char* start = strchr(optarg, '{');
+		    char* end = strchr(optarg, '}');
+		    if (!start || !end || start > end) {
+                        fprintf(stderr, "wrong user_data option format, no matching braces found\n");
+			usage(argv);
+                        retval = -1;
+			goto done;
+                    }
+		    addr_ptr = (int*) malloc(sizeof(int)*count);
+		    val_ptr  = (unsigned char*)malloc(count);
+		    ++start; // skip the '{'
+		    char* token = strtok(start, ",");
+		    int i = 0;
+		    while(token != NULL) {
+                        char* ps = strchr(token, ':');
+			if (!ps) {
+                            fprintf(stderr, "wrong user_data option format, no addr: val pair found in %s\n", token);
+			    usage(argv);
+			    free(addr_ptr);
+			    free(val_ptr);
+			    retval = -1;
+			    goto done;
+			}
+			int addr = strtoul(token, NULL, 0);
+			if (addr >= FTDI_MAX_EEPROM_SIZE) {
+                            fprintf(stderr, "addr %d is out of eeprom range %d\n", addr, FTDI_MAX_EEPROM_SIZE);
+			    usage(argv);
+			    free(addr_ptr);
+			    free(val_ptr);
+			    retval = -1;
+			    goto done;
+			}
+			addr_ptr[i] = addr;
+			val_ptr[i]  = (unsigned char) strtoul(ps+1, NULL, 0);
+			// fprintf(stdout, "token: %s, addr = %u, val: 0x%x\n", token, addr_ptr[i], val_ptr[i]);
+			token = strtok(NULL, ",");
+			++i;
+                    }
+		    user_data = count;
+                } else {
+                    int kuser_data = 4;
+		    addr_ptr = (int*)malloc(sizeof(int)*kuser_data);
+		    val_ptr  = (unsigned char*)malloc(kuser_data);
+		    memcpy(addr_ptr, user_data_addr, sizeof(int)*kuser_data);
+		    memcpy(val_ptr,  user_data_val,  kuser_data);
+		    user_data = kuser_data;
+		}
+                break;	
             case 'w':
                 do_write  = 1;
                 break;
             default:
-                fprintf(stderr, "usage: %s [options]\n", *argv);
-                fprintf(stderr, "\t-d[num] Work with default valuesfor 128 Byte "
-                        "EEPROM or for 256 Byte EEPROM if some [num] is given\n");
-                fprintf(stderr, "\t-w write\n");
-                fprintf(stderr, "\t-e erase\n");
-                fprintf(stderr, "\t-v verbose decoding\n");
-                fprintf(stderr, "\t-p <number> Search for device with PID == number\n");
-                fprintf(stderr, "\t-v <number> Search for device with VID == number\n");
-                fprintf(stderr, "\t-P <string? Search for device with given "
-                        "product description\n");
-                fprintf(stderr, "\t-S <string? Search for device with given "
-                        "serial number\n");
+		usage(argv);
                 retval = -1;
                 goto done;
         }
     }
-
+    /*
+    fprintf(stdout, "user_data %d\n", user_data);
+    for(int i = 0; i < user_data; ++i) {
+        fprintf(stdout, "user_data 0x%x: 0x%x\n", addr_ptr[i], val_ptr[i]);
+    }
+    return 0;
+    */
     // Select first interface
     ftdi_set_interface(ftdi, INTERFACE_ANY);
 
@@ -244,7 +318,10 @@ int main(int argc, char **argv)
                 fprintf(stderr, "ftdi_set_eeprom_value: %d (%s)\n",
                         f, ftdi_get_error_string(ftdi));
             }
-        f=(ftdi_eeprom_build(ftdi));
+        f=(ftdi_eeprom_build(ftdi, user_data, addr_ptr, val_ptr));
+	free(addr_ptr); addr_ptr = NULL;
+	free(val_ptr);  val_ptr  = NULL;
+	user_data = 0;
         if (f < 0)
         {
             fprintf(stderr, "ftdi_eeprom_build: %d (%s)\n",
@@ -274,7 +351,10 @@ int main(int argc, char **argv)
             fprintf(stderr, "Internal EEPROM\n");
         else
             fprintf(stderr, "Found 93x%02x\n", value);
-        f=(ftdi_eeprom_build(ftdi));
+        f=(ftdi_eeprom_build(ftdi, user_data, addr_ptr, val_ptr));
+	free(addr_ptr); addr_ptr = NULL;
+	free(val_ptr);  val_ptr  = NULL;
+	user_data = 0;
         if (f < 0)
         {
             fprintf(stderr, "Erase failed: %s",

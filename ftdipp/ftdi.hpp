@@ -157,7 +157,7 @@ public:
 
     int init_defaults(char *manufacturer, char* product, char * serial);
     int chip_id(unsigned int *chipid);
-    int build(unsigned char *output);
+    int build(unsigned char *output, int nval, int* addr, unsigned char* val);
 
     int read(unsigned char *eeprom);
     int write(unsigned char *eeprom);
