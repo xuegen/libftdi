@@ -39,7 +39,6 @@
 #include <confuse.h>
 #include <libusb.h>
 #include <ftdi.h>
-#include <ftdi_i.h>
 #include <ftdi_eeprom_version.h>
 
 static int parse_cbus(cfg_t *cfg, cfg_opt_t *opt, const char *value, void *result)
@@ -275,6 +274,7 @@ int main(int argc, char *argv[])
     unsigned char *eeprom_buf = NULL;
     char *filename;
     char *user_data = NULL;
+    char *user_data_default = "{0x1a: 0x04, 0x1b: 0x00, 0x1c: 0x4a, 0x1d: 0x58}";
     int size_check;
     int i;
     FILE *fp;
@@ -284,9 +284,6 @@ int main(int argc, char *argv[])
     printf("\nFTDI eeprom generator v%s\n", EEPROM_VERSION_STRING);
     printf ("(c) Intra2net AG and the libftdi developers <opensource@intra2net.com>\n");
 
-    int nval = 0;
-    int* addr_ptr = NULL;
-    unsigned char* val_ptr = NULL;
     for (i = 1; i < argc; i++) {
         if (*argv[i] != '-')
         {
@@ -307,15 +304,7 @@ int main(int argc, char *argv[])
                 fprintf(stderr, "--user-data was already specified, -u flag ignored\n");
 		continue;
 	    }
-	    // use default user data.
-	    int kuser_data = 4;
-	    int user_data_addr[] = {0x1a, 0x1b, 0x1c, 0x1d};
-            unsigned char user_data_val[] = {0x04,0x00,0x4a,0x58};
-	    addr_ptr = (int*)malloc(sizeof(int)*kuser_data);
-	    val_ptr  = (unsigned char*)malloc(kuser_data);
-	    memcpy(addr_ptr, user_data_addr, sizeof(int)*kuser_data);
-	    memcpy(val_ptr,  user_data_val, kuser_data);
-	    nval = kuser_data;
+	    user_data = user_data_default;
 	}
 	else if (!strcmp(argv[i], "--user-data"))
 	{
@@ -364,55 +353,8 @@ int main(int argc, char *argv[])
 
     // read user-data from config file only if not specified on command line.
     // user_data precedence: --user-data, -u, config file.
-    if (!nval && !user_data) {
+    if (!user_data) {
 	user_data = cfg_getstr(cfg, "user_data");
-    }
-
-    if (user_data) {
-        // extract user data
-	// count number of entries first.
-        int len = strlen(user_data);
-	// fprintf(stdout, "get user data n: %d, %s\n", len, user_data);
-        nval = 1;
-        for(int i = 0; i < len; ++i) {
-            if (user_data[i] == ',') { ++nval; }
-        }
-
-        char* start = strchr(user_data, '{');
-        char* end = strchr(user_data, '}');
-        if (!start || !end || start > end) {
-            fprintf(stderr, "wrong user_data option format, no matching braces found\n");
-            usage(argv[0]);
-	    exit(-1);
-        }
-        addr_ptr = (int*) malloc(sizeof(int)*nval);
-        val_ptr  = (unsigned char*)malloc(nval);
-        ++start; // skip the '{'
-        char* token = strtok(start, ",");
-        int ii = 0;
-        while(token != NULL) {
-            char* ps = strchr(token, ':');
-            if (!ps) {
-                fprintf(stderr, "wrong user_data option format, no addr: val pair found in %s\n", token);
-                usage(argv[0]);
-                free(addr_ptr);
-                free(val_ptr);
-		exit(-1);
-            }
-            int addr = strtoul(token, NULL, 0);
-            if (addr >= FTDI_MAX_EEPROM_SIZE) {
-                fprintf(stderr, "addr %d is out of eeprom range %d\n", addr, FTDI_MAX_EEPROM_SIZE);
-                usage(argv[0]);
-                free(addr_ptr);
-                free(val_ptr);
-		exit(-1);
-            }
-            addr_ptr[ii] = addr;
-            val_ptr[ii]  = (unsigned char) strtoul(ps+1, NULL, 0);
-            // fprintf(stdout, "nval: %d, token: %s, addr = %u, val: 0x%x\n", nval, token, addr_ptr[ii], val_ptr[ii]);
-            token = strtok(NULL, ",");
-            ++ii;
-        }
     }
 
     if (cfg_getbool(cfg, "self_powered") && cfg_getint(cfg, "max_power") > 0)
@@ -595,18 +537,8 @@ int main(int argc, char *argv[])
         printf("FTDI erase eeprom: %d\n", ftdi_erase_eeprom(ftdi));
     }
 
-    /*
-    for (int i = 0; i < nval; ++i) {
-	fprintf(stdout, "user data [0x%x] = 0x%x\n", addr_ptr[i], val_ptr[i]);
-    }
-    */
-    size_check = ftdi_eeprom_build(ftdi, nval, addr_ptr, val_ptr);
+    size_check = ftdi_eeprom_build(ftdi, user_data);
     eeprom_get_value(ftdi, CHIP_SIZE, &my_eeprom_size);
-    if (nval) {
-	free(addr_ptr); addr_ptr = NULL;
-	free(val_ptr);  val_ptr = NULL;
-	nval = 0;
-    }
 
     if (size_check == -1)
     {

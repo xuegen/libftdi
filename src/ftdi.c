@@ -2549,9 +2549,7 @@ static unsigned char type2bit(unsigned char type, enum ftdi_chip_type chip)
     Output is suitable for ftdi_write_eeprom().
 
     \param ftdi pointer to ftdi_context
-    \param nval number of user data entries.
-    \param addr array of user data address
-    \param val  array of user data value
+    \param user_data of the format '{addr: val, addr: val}'
 
     \retval >=0: size of eeprom user area in bytes
     \retval -1: eeprom size (128 bytes) exceeded by custom strings
@@ -2561,7 +2559,7 @@ static unsigned char type2bit(unsigned char type, enum ftdi_chip_type chip)
     \retval -5: Chip doesn't support high current drive         (FIXME: Not in the code?)
     \retval -6: No connected EEPROM or EEPROM Type unknown
 */
-int ftdi_eeprom_build(struct ftdi_context *ftdi, int nval, int* addr, unsigned char* val)
+int ftdi_eeprom_build(struct ftdi_context *ftdi, const char* user_data)
 {
     unsigned char i, j, eeprom_size_mask;
     unsigned short checksum, value;
@@ -3077,14 +3075,40 @@ int ftdi_eeprom_build(struct ftdi_context *ftdi, int nval, int* addr, unsigned c
             break;
     }
 
-    // set user data if needed.
-    for (int i = 0; i < nval; ++i) {
-        output[addr[i]] = val[i];
+    // if user_data is specified, need to extract the data and set it to the eeprom.
+    if (user_data && strlen(user_data) > 0) {
+        char* start = strchr(user_data, '{');
+        char* end = strchr(user_data, '}');
+        if (!start || !end || start > end) {
+            fprintf(stderr, "wrong user_data option format, no matching braces found\n");
+	    fprintf(stderr, "user_data must be a string of the format {addr: val, addr: val} or empty or NULL\n");
+	    exit(-1);
+        }
+        ++start; // skip the '{'
+        char* token = strtok(start, ",");
+        while(token != NULL) {
+            char* ps = strchr(token, ':');
+            if (!ps) {
+                fprintf(stderr, "wrong user_data option format, no addr: val pair found in %s\n", token);
+	        fprintf(stderr, "user_data must be a string of the format {addr: val, addr: val} or empty or NULL\n");
+	        exit(-1);
+            }
+            int addr = strtoul(token, NULL, 0);
+            if (addr >= FTDI_MAX_EEPROM_SIZE) {
+                fprintf(stderr, "addr %d is out of eeprom range %d\n", addr, FTDI_MAX_EEPROM_SIZE);
+	        exit(-1);
+            }
+	    // fprintf(stdout, "token: %s, addr: 0x%x, ps: %s\n", token, addr, ps);
+	    output[addr] = (unsigned char) strtoul(ps+1, NULL, 0);
+            token = strtok(NULL, ",");
+        }
     }
 
+#if 0
     for (int i = 0; i < 128; ++i) {
         fprintf(stdout, "buf[0x%x] = 0x%x\n", i, output[i]);
     }
+#endif
 
     // calculate checksum
     checksum = 0xAAAA;
