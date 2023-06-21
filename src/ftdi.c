@@ -2559,7 +2559,7 @@ static unsigned char type2bit(unsigned char type, enum ftdi_chip_type chip)
     \retval -5: Chip doesn't support high current drive         (FIXME: Not in the code?)
     \retval -6: No connected EEPROM or EEPROM Type unknown
 */
-int ftdi_eeprom_build(struct ftdi_context *ftdi, const char* user_data)
+int ftdi_eeprom_build(struct ftdi_context *ftdi, char* user_data)
 {
     unsigned char i, j, eeprom_size_mask;
     unsigned short checksum, value;

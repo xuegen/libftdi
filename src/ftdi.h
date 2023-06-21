@@ -543,7 +543,7 @@ extern "C"
     int ftdi_eeprom_initdefaults(struct ftdi_context *ftdi,
                                  char * manufacturer, char *product,
                                  char * serial);
-    int ftdi_eeprom_build(struct ftdi_context *ftdi, const char* user_data);
+    int ftdi_eeprom_build(struct ftdi_context *ftdi, char* user_data);
     int ftdi_eeprom_decode(struct ftdi_context *ftdi, int verbose);
 
     int ftdi_get_eeprom_value(struct ftdi_context *ftdi, enum ftdi_eeprom_value value_name, int* value);

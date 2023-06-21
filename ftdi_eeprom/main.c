@@ -274,7 +274,7 @@ int main(int argc, char *argv[])
     unsigned char *eeprom_buf = NULL;
     char *filename;
     char *user_data = NULL;
-    char *user_data_default = "{0x1a: 0x04, 0x1b: 0x00, 0x1c: 0x4a, 0x1d: 0x58}";
+    char user_data_default[] = "{0x1a: 0x04, 0x1b: 0x00, 0x1c: 0x4a, 0x1d: 0x58}";
     int size_check;
     int i;
     FILE *fp;

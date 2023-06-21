@@ -426,7 +426,7 @@ int Eeprom::chip_id(unsigned int *chipid)
     return ftdi_read_chipid(d->context, chipid);
 }
 
-int Eeprom::build(unsigned char *output, const char* user_data)
+int Eeprom::build(unsigned char *output, char* user_data)
 {
     return ftdi_eeprom_build(d->context, user_data);
 }
