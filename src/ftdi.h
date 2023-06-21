@@ -478,6 +478,8 @@ extern "C"
                           int vendor, int product);
     void ftdi_list_free(struct ftdi_device_list **devlist);
     void ftdi_list_free2(struct ftdi_device_list *devlist);
+    int ftdi_usb_get_dev_desc(struct ftdi_context *ftdi, struct libusb_device *dev, unsigned int fields[], int nfields);
+    const char* ftdi_usb_get_dev_desc_fieldname(int index);
     int ftdi_usb_get_strings(struct ftdi_context *ftdi, struct libusb_device *dev,
                              char * manufacturer, int mnf_len,
                              char * description, int desc_len,

@@ -45,6 +45,26 @@ PyObject* convertString( const char *v, Py_ssize_t len )
                           int vendor, int product);
 %clear struct ftdi_device_list **devlist;
 
+%define ftdi_usb_get_dev_desc_docstring
+"usb_get_dev_desc(context, device) -> (return_code, fields)"
+%enddef
+%feature("autodoc", ftdi_usb_get_dev_desc_docstring) ftdi_usb_get_dev_desc;
+%typemap(default,noblock=1) int nfields;
+%typemap(in,numinputs=0) (unsigned int *fields, int nfields) %{ $2 = 14; $1 = (unsigned int*)malloc($2*sizeof(unsigned int)); %}
+%typemap(argout) (unsigned int *fields, int nfields) %{ PyObject* x = PyList_New($2); for(int i=0;i<$2;++i) PyList_SetItem(x, i, PyInt_FromLong($1[i]));$result = SWIG_Python_AppendOutput($result, x); %}
+%typemap(freearg)(unsigned int *fields, int nfields) { if ($1) free($1); }
+    int ftdi_usb_get_dev_desc(struct ftdi_context *ftdi, struct libusb_device *dev, unsigned int *fields, int nfields);
+%clear (unsigned int* fields, int nfields);
+
+%define ftdi_usb_get_dev_desc_fieldname_docstring
+"usb_get_dev_desc_fieldname(index) -> (name)"
+%enddef
+%feature("autodoc", ftdi_usb_get_dev_desc_fieldname_docstring) ftdi_usb_get_dev_desc_fieldname;
+%typemap(in,numinputs=1)(int index);
+%typemap(argout) (char *name) %{ $result = PyString_FromString($1); %}
+    char* ftdi_usb_get_dev_desc_fieldname(int index);
+%clear (char *name, int index);
+
 %define ftdi_usb_get_strings_docstring
 "usb_get_strings(context, device) -> (return_code, manufacturer, description, serial)"
 %enddef
@@ -101,6 +121,13 @@ PyObject* convertString( const char *v, Py_ssize_t len )
 %typemap(argout) (unsigned char *buf, int size) %{ if(result<0) $2=0; $result = SWIG_Python_AppendOutput($result, convertString((char*)$1, $2)); free($1); %}
     int ftdi_get_eeprom_buf(struct ftdi_context *ftdi, unsigned char * buf, int size);
 %clear (unsigned char *buf, int size);
+
+%define ftdi_write_eeprom_location_docstring
+"write_eeprom_location(context, eeprom_addr, eeprom_val) ->  (return_code)"
+%enddef
+%feature("autodoc", ftdi_write_eeprom_location_docstring) ftdi_write_eeprom_location;
+    int ftdi_write_eeprom_location (struct ftdi_context *ftdi, int eeprom_addr, unsigned short eeprom_val);
+%clear (int eeprom_addr, unsigned short eeprom_val);
 
 %define ftdi_read_eeprom_location_docstring
 "read_eeprom_location(context, eeprom_addr) -> (return_code, eeprom_val)"

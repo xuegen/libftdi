@@ -381,6 +381,82 @@ void ftdi_list_free2(struct ftdi_device_list *devlist)
 }
 
 /**
+    Return device descriptor from the usb device.
+    The parameter nfields is the size of the fields array and must
+    match the number of fiels in the libusb_device_descriptor struct.
+    The number of fields is currently 14.
+
+    \param ftdi pointer to ftdi_context
+    \param dev  libusb usb_dev to use
+    \param fields array to store the dev_desc struct field values.
+    \param nfiels size of the array. It must be 14.
+
+    \retval   14: number of fields for the libusb_device_descriptor struct
+    \retval  -1: wrong arguments
+    \retval  -4: unable to open device
+    \retval -11: libusb_get_device_descriptor() failed
+*/
+
+int ftdi_usb_get_dev_desc(struct ftdi_context *ftdi, struct libusb_device *dev, unsigned int fields[], int nfields)
+{
+    if ((ftdi == NULL) || (dev == NULL) || (nfields != 14))
+        return -1;
+
+    if (ftdi->usb_dev == NULL && libusb_open(dev, &ftdi->usb_dev) < 0)
+            ftdi_error_return(-4, "libusb_open() failed");
+
+    struct libusb_device_descriptor desc;
+    if (libusb_get_device_descriptor(dev, &desc) < 0)
+        ftdi_error_return(-11, "libusb_get_device_descriptor() failed");
+
+    fields[0] = desc.bLength;
+    fields[1] = desc.bDescriptorType;
+    fields[2] = desc.bcdUSB;
+    fields[3] = desc.bDeviceClass;
+    fields[4] = desc.bDeviceSubClass;
+    fields[5] = desc.bDeviceProtocol;
+    fields[6] = desc.bMaxPacketSize0;
+    fields[7] = desc.idVendor;
+    fields[8] = desc.idProduct;
+    fields[9] = desc.bcdDevice;
+    fields[10] = desc.iManufacturer;
+    fields[11] = desc.iProduct;
+    fields[12] = desc.iSerialNumber;
+    fields[13] = desc.bNumConfigurations;
+    return 14;
+}
+
+/**
+    Return device descriptor field name based on field index.
+
+    \param index  0-based field index of the libusb_device_descriptor struct
+    
+    \retval const char* name of the field.
+*/
+
+const char* ftdi_usb_get_dev_desc_fieldname(int index)
+{
+    switch (index)
+    {
+        case 0: return "bLength";
+	case 1: return "bDescriptorType";
+	case 2: return "bcdUSB";
+	case 3: return "bDeviceClass";
+	case 4: return "bDeviceSubClass";
+	case 5: return "bDeviceProtocol";
+	case 6: return "bMaxPacketSize0";
+	case 7: return "idVendor";
+	case 8: return "idProduct";
+	case 9: return "bcdDevice";
+	case 10: return "iManufacturer";
+        case 11: return "iProduct";
+	case 12: return "iSerialNumber";
+	case 13: return "bNumConfigurations";
+	default: return "Invalid";
+    }
+}
+
+/**
     Return device ID strings from the usb device.
 
     The parameters manufacturer, description and serial may be NULL
@@ -422,8 +498,10 @@ int ftdi_usb_get_strings(struct ftdi_context * ftdi, struct libusb_device * dev,
 
     if (manufacturer != NULL)
     {
-        if (libusb_get_string_descriptor_ascii(ftdi->usb_dev, desc.iManufacturer, (unsigned char *)manufacturer, mnf_len) < 0)
+        int rc = libusb_get_string_descriptor_ascii(ftdi->usb_dev, desc.iManufacturer, (unsigned char *)manufacturer, mnf_len);
+        if (rc < 0)
         {
+	    fprintf(stderr, "libusb_get_string_descriptor_ascii manufacturer index %d error %d\n", desc.iManufacturer, rc); 
             ftdi_usb_close_internal (ftdi);
             ftdi_error_return(-7, "libusb_get_string_descriptor_ascii() failed");
         }
@@ -431,8 +509,10 @@ int ftdi_usb_get_strings(struct ftdi_context * ftdi, struct libusb_device * dev,
 
     if (description != NULL)
     {
-        if (libusb_get_string_descriptor_ascii(ftdi->usb_dev, desc.iProduct, (unsigned char *)description, desc_len) < 0)
+        int rc = libusb_get_string_descriptor_ascii(ftdi->usb_dev, desc.iProduct, (unsigned char *)description, desc_len);
+        if (rc < 0)
         {
+	    fprintf(stderr, "libusb_get_string_descriptor_ascii description index %d error %d\n", desc.iProduct, rc); 
             ftdi_usb_close_internal (ftdi);
             ftdi_error_return(-8, "libusb_get_string_descriptor_ascii() failed");
         }
@@ -440,8 +520,10 @@ int ftdi_usb_get_strings(struct ftdi_context * ftdi, struct libusb_device * dev,
 
     if (serial != NULL)
     {
-        if (libusb_get_string_descriptor_ascii(ftdi->usb_dev, desc.iSerialNumber, (unsigned char *)serial, serial_len) < 0)
+        int rc = libusb_get_string_descriptor_ascii(ftdi->usb_dev, desc.iSerialNumber, (unsigned char *)serial, serial_len);
+        if (rc < 0)
         {
+	    fprintf(stderr, "libusb_get_string_descriptor_ascii serial index %d error %d\n", desc.iSerialNumber, rc); 
             ftdi_usb_close_internal (ftdi);
             ftdi_error_return(-9, "libusb_get_string_descriptor_ascii() failed");
         }
@@ -4185,7 +4267,10 @@ int ftdi_write_eeprom_location(struct ftdi_context *ftdi, int eeprom_addr,
         ftdi_error_return(-2, "USB device unavailable");
 
     if (eeprom_addr <0x80)
-        ftdi_error_return(-2, "Invalid access to checksum protected area  below 0x80");
+    {
+        // ftdi_error_return(-2, "Invalid access to checksum protected area  below 0x80");
+	fprintf(stderr, "WARNING: write to checksum protected area below 0x80\n");
+    }
 
 
     switch (ftdi->type)
@@ -4210,7 +4295,7 @@ int ftdi_write_eeprom_location(struct ftdi_context *ftdi, int eeprom_addr,
     fprintf(stderr," loc 0x%04x val 0x%04x\n", chip_type_location,chip_type);
     if ((chip_type & 0xff) != 0x66)
     {
-        ftdi_error_return(-6, "EEPROM is not of 93x66");
+//        ftdi_error_return(-6, "EEPROM is not of 93x66");
     }
 
     if (libusb_control_transfer(ftdi->usb_dev, FTDI_DEVICE_OUT_REQTYPE,

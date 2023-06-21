@@ -36,13 +36,29 @@ int main(void)
     for (curdev = devlist; curdev != NULL; i++)
     {
         printf("Checking device: %d\n", i);
+	unsigned int fields[14];
+	if ((ret = ftdi_usb_get_dev_desc(ftdi, curdev->dev, fields, 14)) < 0)
+	{
+	    fprintf(stderr, "ftdi_usb_get_dev_desc failed: %d (%s)\n", ret, ftdi_get_error_string(ftdi));
+	    goto done;
+	}
+	printf("--------------------------------------\n");
+	printf("Device descriptor:\n");
+	for (int i = 0; i < 14; ++i) {
+	    printf("%s: 0x%x\n", ftdi_usb_get_dev_desc_fieldname(i), fields[i]);
+	}
+
         if ((ret = ftdi_usb_get_strings(ftdi, curdev->dev, manufacturer, 128, description, 128, NULL, 0)) < 0)
         {
             fprintf(stderr, "ftdi_usb_get_strings failed: %d (%s)\n", ret, ftdi_get_error_string(ftdi));
             retval = EXIT_FAILURE;
             goto done;
         }
-        printf("Manufacturer: %s, Description: %s\n\n", manufacturer, description);
+	printf("------------------\n");
+	printf("String descriptor:\n");
+        printf("Manufacturer: %s\n", manufacturer);
+        printf("Description: %s\n", description);
+	printf("--------------------------------------\n\n");
         curdev = curdev->next;
     }
 done:
