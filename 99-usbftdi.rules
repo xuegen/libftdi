@@ -1,0 +1,3 @@
+# For FTDI FT232 & FT245 USB devices with Vendor ID = 0x0403, Product ID = 0xabc
+# ATTR{idProduct}=="6011", ATTR{idVendor}=="0403", TAG+="uaccess"
+ATTR{idProduct}=="6011", ATTR{idVendor}=="0403", MODE="0666"
