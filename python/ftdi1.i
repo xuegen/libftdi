@@ -62,7 +62,7 @@ PyObject* convertString( const char *v, Py_ssize_t len )
 %feature("autodoc", ftdi_usb_get_dev_desc_fieldname_docstring) ftdi_usb_get_dev_desc_fieldname;
 %typemap(in,numinputs=1)(int index);
 %typemap(argout) (char *name) %{ $result = PyString_FromString($1); %}
-    char* ftdi_usb_get_dev_desc_fieldname(int index);
+    const char* ftdi_usb_get_dev_desc_fieldname(int index);
 %clear (char *name, int index);
 
 %define ftdi_usb_get_strings_docstring
@@ -120,6 +120,14 @@ PyObject* convertString( const char *v, Py_ssize_t len )
 %typemap(in,numinputs=1) (unsigned char *buf, int size) %{ $2 = PyInt_AsLong($input);$1 = (unsigned char*)malloc($2*sizeof(char)); %}
 %typemap(argout) (unsigned char *buf, int size) %{ if(result<0) $2=0; $result = SWIG_Python_AppendOutput($result, convertString((char*)$1, $2)); free($1); %}
     int ftdi_get_eeprom_buf(struct ftdi_context *ftdi, unsigned char * buf, int size);
+%clear (unsigned char *buf, int size);
+
+%define ftdi_set_eeprom_buf_docstring
+"set_eeprom_buf(context, buf, size) -> (return_code)"
+%enddef
+%feature("autodoc", ftdi_set_eeprom_buf_docstring) ftdi_set_eeprom_buf;
+%typemap(in) (unsigned char* buf, int size) %{ $2=PySequence_Size($input); $1 = (unsigned char*)malloc($2*sizeof(unsigned char)); for(int i=0;i<$2;++i){PyObject* o = PySequence_GetItem($input, i); $1[i]=(unsigned char)PyInt_AsLong(o);} %}
+    int ftdi_set_eeprom_buf(struct ftdi_context *ftdi, unsigned char * buf, int size);
 %clear (unsigned char *buf, int size);
 
 %define ftdi_write_eeprom_location_docstring

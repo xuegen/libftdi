@@ -389,7 +389,7 @@ void ftdi_list_free2(struct ftdi_device_list *devlist)
     \param ftdi pointer to ftdi_context
     \param dev  libusb usb_dev to use
     \param fields array to store the dev_desc struct field values.
-    \param nfiels size of the array. It must be 14.
+    \param nfields size of the array. It must be 14.
 
     \retval   14: number of fields for the libusb_device_descriptor struct
     \retval  -1: wrong arguments
@@ -2644,7 +2644,6 @@ static unsigned char type2bit(unsigned char type, enum ftdi_chip_type chip)
 int ftdi_eeprom_build(struct ftdi_context *ftdi, char* user_data)
 {
     unsigned char i, j, eeprom_size_mask;
-    unsigned short checksum, value;
     unsigned char manufacturer_size = 0, product_size = 0, serial_size = 0;
     int user_area_size;
     struct ftdi_eeprom *eeprom;
@@ -3191,11 +3190,33 @@ int ftdi_eeprom_build(struct ftdi_context *ftdi, char* user_data)
         fprintf(stdout, "buf[0x%x] = 0x%x\n", i, output[i]);
     }
 #endif
+    ftdi_eeprom_checksum(ftdi);
+    return user_area_size;
+}
 
-    // calculate checksum
+/**
+    Calculate checksum based on binary buffer of the ftdi_eeprom structure.
+    Output is suitable for ftdi_write_eeprom().
+
+    \param ftdi pointer to ftdi_context
+
+    \retval =0: success
+    \retval -2: Invalid eeprom or ftdi pointer
+*/
+
+int ftdi_eeprom_checksum(struct ftdi_context *ftdi)
+{
+    if (ftdi == NULL)
+        ftdi_error_return(-2,"No context");
+    if (ftdi->eeprom == NULL)
+        ftdi_error_return(-2,"No eeprom structure");
+
+    unsigned short checksum, value;
     checksum = 0xAAAA;
-
-    for (i = 0; i < eeprom->size/2-1; i++)
+   
+    struct ftdi_eeprom *eeprom = ftdi->eeprom;
+    unsigned char * output = eeprom->buf;
+    for (int i = 0; i < eeprom->size/2-1; i++)
     {
         if ((ftdi->type == TYPE_230X) && (i == 0x12))
         {
@@ -3222,7 +3243,7 @@ int ftdi_eeprom_build(struct ftdi_context *ftdi, char* user_data)
     output[eeprom->size-1] = checksum >> 8;
 
     eeprom->initialized_for_connected_device = 1;
-    return user_area_size;
+    return 0;
 }
 /* Decode the encoded EEPROM field for the FTDI Mode into a value for the abstracted
  * EEPROM structure
@@ -4109,13 +4130,13 @@ int ftdi_get_eeprom_buf(struct ftdi_context *ftdi, unsigned char * buf, int size
 /** Set the EEPROM content from the user-supplied prefilled buffer
 
     \param ftdi pointer to ftdi_context
-    \param buf buffer to read EEPROM content
+    \param buf buffer that holds EEPROM content
     \param size Size of buffer
 
     \retval 0: All fine
     \retval -1: struct ftdi_contxt or ftdi_eeprom of buf missing
 */
-int ftdi_set_eeprom_buf(struct ftdi_context *ftdi, const unsigned char * buf, int size)
+int ftdi_set_eeprom_buf(struct ftdi_context *ftdi, unsigned char * buf, int size)
 {
     if (!ftdi || !(ftdi->eeprom) || !buf)
         ftdi_error_return(-1, "No appropriate structure");

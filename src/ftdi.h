@@ -546,13 +546,14 @@ extern "C"
                                  char * manufacturer, char *product,
                                  char * serial);
     int ftdi_eeprom_build(struct ftdi_context *ftdi, char* user_data);
+    int ftdi_eeprom_checksum(struct ftdi_context *ftdi);
     int ftdi_eeprom_decode(struct ftdi_context *ftdi, int verbose);
 
     int ftdi_get_eeprom_value(struct ftdi_context *ftdi, enum ftdi_eeprom_value value_name, int* value);
     int ftdi_set_eeprom_value(struct ftdi_context *ftdi, enum ftdi_eeprom_value value_name, int  value);
 
     int ftdi_get_eeprom_buf(struct ftdi_context *ftdi, unsigned char * buf, int size);
-    int ftdi_set_eeprom_buf(struct ftdi_context *ftdi, const unsigned char * buf, int size);
+    int ftdi_set_eeprom_buf(struct ftdi_context *ftdi, unsigned char * buf, int size);
 
     int ftdi_read_eeprom(struct ftdi_context *ftdi);
     int ftdi_read_chipid(struct ftdi_context *ftdi, unsigned int *chipid);
