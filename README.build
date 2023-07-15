@@ -32,6 +32,10 @@ cmake  -DCMAKE_INSTALL_PREFIX="/usr" ../
 make
 sudo make install
 
+sudo cp 99-usbftdi.rules /etc/udev/rules.d
+sudo udevadm control --reload
+sudo udevadm trigger
+
 5) carry out some tests
 cd examples
 

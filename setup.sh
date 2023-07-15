@@ -15,3 +15,6 @@ sudo apt-get install -y python-dev
 
 # for C++ binding and unit test
 sudo apt-get install -y libboost-all-dev
+
+# setup udev-rules
+
