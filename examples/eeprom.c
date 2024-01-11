@@ -17,10 +17,10 @@ static void usage(char** argv) {
             "EEPROM or for 256 Byte EEPROM if some [num] is given\n");
     fprintf(stderr, "\t-w write\n");
     fprintf(stderr, "\t-e erase\n");
-    fprintf(stderr, "\t-v verbose decoding\n");
     fprintf(stderr, "\t-p <number> Search for device with PID == number\n");
     fprintf(stderr, "\t-u['{addr: val, addr: val, ...}'] sets eeprom value at given addresses."
             "if values not specified, [0x1a-0x1d] = 0x04,0x00,0x4a,0x58 will be used\n");
+    fprintf(stderr, "\t-m similar to -u option. But, it reads eeprom first and modifies bytes specified addresses. \n");
     fprintf(stderr, "\t-v <number> Search for device with VID == number\n");
     fprintf(stderr, "\t-P <string? Search for device with given "
             "product description\n");
@@ -97,10 +97,11 @@ int main(int argc, char **argv)
     int use_defaults = 0;
     int large_chip = 0;
     int do_write = 0;
+    int rm = 0;   // does a read modify operation.
     int retval = 0;
     int value;
-    char* user_data = NULL;  /* user data for eeprom, string of the format "{addr: val, addr: val}" */
-    char user_data_default[] = "{0x1a: 0x04, 0x1b: 0x00, 0x1c: 0x4a, 0x1d: 0x58}";
+    unsigned char* user_data = NULL;  /* user data for eeprom, string of the format "{addr: val, addr: val}" */
+    unsigned char user_data_default[] = "{0x1a: 0x04, 0x1b: 0x00, 0x1c: 0x4a, 0x1d: 0x58}";
 
     if ((ftdi = ftdi_new()) == 0)
     {
@@ -109,7 +110,7 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    while ((i = getopt(argc, argv, "du::ev:p:l:P:S:u:w")) != -1)
+    while ((i = getopt(argc, argv, "d::ev:p:l:P:S:u:m:w")) != -1)
     {
         switch (i)
         {
@@ -133,12 +134,14 @@ int main(int argc, char **argv)
             case 'S':
                 serial = optarg;
                 break;
+            case 'm':
+		rm = 1;
             case 'u':
                 if (optarg) {
-                    user_data = optarg;
+                    user_data = (unsigned char*)optarg;
                 } else {
                     user_data = user_data_default;
-		}
+                }
                 break;	
             case 'w':
                 do_write  = 1;
@@ -265,6 +268,28 @@ int main(int argc, char **argv)
             fprintf(stderr, "ftdi_eeprom_build: %d (%s)\n",
                     f, ftdi_get_error_string(ftdi));
             retval = -1;
+            goto done;
+        }
+    }
+    else if (rm)  // read-modify-write
+    {
+        fprintf(stdout, "reading current eeprom:\n");
+        retval = read_decode_eeprom(ftdi);
+        if (retval) {
+            fprintf(stderr, "Error reading eeprom\n");
+            goto done;
+        }
+        retval = ftdi_set_eeprom_data(ftdi, user_data);
+        if (retval) {
+            fprintf(stderr, "Error setting user data\n");
+            goto done;
+        }
+        ftdi_eeprom_checksum(ftdi);
+        f = ftdi_write_eeprom(ftdi);
+        {
+            fprintf(stderr, "ftdi_write_eeprom: %d (%s)\n",
+                    f, ftdi_get_error_string(ftdi));
+            retval = 1;
             goto done;
         }
     }

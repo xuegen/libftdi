@@ -273,8 +273,8 @@ int main(int argc, char *argv[])
     int my_eeprom_size = 0;
     unsigned char *eeprom_buf = NULL;
     char *filename;
-    char *user_data = NULL;
-    char user_data_default[] = "{0x1a: 0x04, 0x1b: 0x00, 0x1c: 0x4a, 0x1d: 0x58}";
+    unsigned char *user_data = NULL;
+    unsigned char user_data_default[] = "{0x1a: 0x04, 0x1b: 0x00, 0x1c: 0x4a, 0x1d: 0x58}";
     int size_check;
     int i;
     FILE *fp;
@@ -313,7 +313,7 @@ int main(int argc, char *argv[])
                 usage(argv[0]);
 		exit(-1);
 	    }
-	    user_data = argv[++i];
+	    user_data = (unsigned char*)argv[++i];
 	}
         else if (!strcmp(argv[i], "--read-eeprom"))
         {
@@ -354,7 +354,7 @@ int main(int argc, char *argv[])
     // read user-data from config file only if not specified on command line.
     // user_data precedence: --user-data, -u, config file.
     if (!user_data) {
-	user_data = cfg_getstr(cfg, "user_data");
+	user_data = (unsigned char*)cfg_getstr(cfg, "user_data");
     }
 
     if (cfg_getbool(cfg, "self_powered") && cfg_getint(cfg, "max_power") > 0)

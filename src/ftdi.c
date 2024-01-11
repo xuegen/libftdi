@@ -668,6 +668,7 @@ int ftdi_usb_open_dev(struct ftdi_context *ftdi, libusb_device *dev)
         }
     }
 
+    // printf("perform ftdi_usb_reset\n");
     if (ftdi_usb_reset (ftdi) != 0)
     {
         ftdi_usb_close_internal (ftdi);
@@ -2641,7 +2642,7 @@ static unsigned char type2bit(unsigned char type, enum ftdi_chip_type chip)
     \retval -5: Chip doesn't support high current drive         (FIXME: Not in the code?)
     \retval -6: No connected EEPROM or EEPROM Type unknown
 */
-int ftdi_eeprom_build(struct ftdi_context *ftdi, char* user_data)
+int ftdi_eeprom_build(struct ftdi_context *ftdi, unsigned char* user_data)
 {
     unsigned char i, j, eeprom_size_mask;
     unsigned char manufacturer_size = 0, product_size = 0, serial_size = 0;
@@ -3157,34 +3158,7 @@ int ftdi_eeprom_build(struct ftdi_context *ftdi, char* user_data)
     }
 
     // if user_data is specified, need to extract the data and set it to the eeprom.
-    if (user_data && strlen(user_data) > 0) {
-        char* start = strchr(user_data, '{');
-        char* end = strchr(user_data, '}');
-        if (!start || !end || start > end) {
-            fprintf(stderr, "wrong user_data option format, no matching braces found\n");
-	    fprintf(stderr, "user_data must be a string of the format {addr: val, addr: val} or empty or NULL\n");
-	    exit(-1);
-        }
-        ++start; // skip the '{'
-        char* token = strtok(start, ",");
-        while(token != NULL) {
-            char* ps = strchr(token, ':');
-            if (!ps) {
-                fprintf(stderr, "wrong user_data option format, no addr: val pair found in %s\n", token);
-	        fprintf(stderr, "user_data must be a string of the format {addr: val, addr: val} or empty or NULL\n");
-	        exit(-1);
-            }
-            int addr = strtoul(token, NULL, 0);
-            if (addr >= FTDI_MAX_EEPROM_SIZE) {
-                fprintf(stderr, "addr %d is out of eeprom range %d\n", addr, FTDI_MAX_EEPROM_SIZE);
-	        exit(-1);
-            }
-	    // fprintf(stdout, "token: %s, addr: 0x%x, ps: %s\n", token, addr, ps);
-	    output[addr] = (unsigned char) strtoul(ps+1, NULL, 0);
-            token = strtok(NULL, ",");
-        }
-    }
-
+    ftdi_set_eeprom_data(ftdi, user_data);
 #if 0
     for (int i = 0; i < 128; ++i) {
         fprintf(stdout, "buf[0x%x] = 0x%x\n", i, output[i]);
@@ -4147,6 +4121,53 @@ int ftdi_set_eeprom_buf(struct ftdi_context *ftdi, unsigned char * buf, int size
 
     memcpy(ftdi->eeprom->buf, buf, size);
 
+    return 0;
+}
+
+/**
+    sets the data to be user specified.
+    \param ftdi pointer to ftdi_context
+    \param user_data pointer to user specified data
+
+    \retval =0: success
+    \retval -1: invalid data format
+    \retval -2: specified data address exceeds eeprom size.
+*/
+
+int ftdi_set_eeprom_data(struct ftdi_context *ftdi, unsigned char* user_data)
+{
+    if (!ftdi || !ftdi->eeprom || !ftdi->eeprom->buf) {
+        fprintf(stderr, "invalid ftdi or invalid ftdi->buf\n");
+        ftdi_error_return(-1, "invalid ftdi pointer");
+    }
+    char* data = (char*)user_data;
+    if (data && strlen(data) > 0) {
+        char* start = strchr(data, '{');
+        char* end = strchr(data, '}');
+        if (!start || !end || start > end) {
+            fprintf(stderr, "wrong user_data option format, no matching braces found\n");
+	    fprintf(stderr, "user_data must be a string of the format {addr: val, addr: val} or empty or NULL\n");
+            ftdi_error_return(-1, "invalid user data format");
+        }
+        ++start; // skip the '{'
+        char* token = strtok(start, ",");
+        while(token != NULL) {
+            char* ps = strchr(token, ':');
+            if (!ps) {
+                fprintf(stderr, "wrong user_data option format, no addr: val pair found in %s\n", token);
+	        fprintf(stderr, "user_data must be a string of the format {addr: val, addr: val} or empty or NULL\n");
+                ftdi_error_return(-1, "invalid user data format");
+            }
+            int addr = strtoul(token, NULL, 0);
+            if (addr >= FTDI_MAX_EEPROM_SIZE) {
+                fprintf(stderr, "addr %d is out of eeprom range %d\n", addr, FTDI_MAX_EEPROM_SIZE);
+                ftdi_error_return(-2, "data address exceeds eeprom size");
+            }
+	    // fprintf(stdout, "token: %s, addr: 0x%x, ps: %s\n", token, addr, ps);
+	    ftdi->eeprom->buf[addr] = (unsigned char) strtoul(ps+1, NULL, 0);
+            token = strtok(NULL, ",");
+        }
+    }
     return 0;
 }
 
