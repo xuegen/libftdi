@@ -35,14 +35,14 @@ PyObject* convertString( const char *v, Py_ssize_t len )
 %delobject ftdi_free;
 
 %define ftdi_usb_find_all_docstring
-"usb_find_all(context, vendor, product) -> (return_code, devlist)"
+"usb_find_all(context, vendor, product, bus, devaddr) -> (return_code, devlist)"
 %enddef
 %feature("autodoc", ftdi_usb_find_all_docstring) ftdi_usb_find_all;
 %typemap(in,numinputs=0) SWIGTYPE** OUTPUT ($*ltype temp) %{ $1 = &temp; %}
 %typemap(argout) SWIGTYPE** OUTPUT %{ $result = SWIG_Python_AppendOutput($result, SWIG_NewPointerObj((void*)*$1,$*descriptor,0)); %}
 %apply SWIGTYPE** OUTPUT { struct ftdi_device_list **devlist };
     int ftdi_usb_find_all(struct ftdi_context *ftdi, struct ftdi_device_list **devlist,
-                          int vendor, int product);
+                          int vendor, int product, int bus, int devaddr);
 %clear struct ftdi_device_list **devlist;
 
 %define ftdi_usb_get_dev_desc_docstring

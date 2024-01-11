@@ -13,6 +13,8 @@
 
 static void usage(char** argv) {
     fprintf(stderr, "usage: %s [options]\n", *argv);
+    fprintf(stderr, "\t-a <number> Search for device with given dev address/number\n");
+    fprintf(stderr, "\t-b <number> Search for device on bus number\n");
     fprintf(stderr, "\t-d[num] Work with default valuesfor 128 Byte "
             "EEPROM or for 256 Byte EEPROM if some [num] is given\n");
     fprintf(stderr, "\t-w write\n");
@@ -91,6 +93,8 @@ int main(int argc, char **argv)
     int f, i;
     int vid = 0;
     int pid = 0;
+    int bus = 0;
+    int devaddr = 0;
     char const *desc    = 0;
     char const *serial  = 0;
     int erase = 0;
@@ -110,10 +114,16 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    while ((i = getopt(argc, argv, "d::ev:p:l:P:S:u:m:w")) != -1)
+    while ((i = getopt(argc, argv, "a:b:d::ev:p:l:P:S:u:m:w")) != -1)
     {
         switch (i)
         {
+            case 'a':
+                devaddr = strtoul(optarg, NULL, 0);
+                break;
+            case 'b':
+                bus = strtoul(optarg, NULL, 0);
+                break;
             case 'd':
                 use_defaults = 1;
                 if (optarg)
@@ -160,7 +170,7 @@ int main(int argc, char **argv)
     {
         struct ftdi_device_list *devlist, *curdev;
         int res;
-        if ((res = ftdi_usb_find_all(ftdi, &devlist, 0, 0)) < 0)
+        if ((res = ftdi_usb_find_all(ftdi, &devlist, 0, 0, bus, devaddr)) < 0)
         {
             fprintf(stderr, "No FTDI with default VID/PID found\n");
             retval =  EXIT_FAILURE;
@@ -201,6 +211,9 @@ int main(int argc, char **argv)
         {
             fprintf(stderr, "No devices found\n");
             f = 0;
+            ftdi_list_free(&devlist);
+            retval = EXIT_SUCCESS;
+            goto do_deinit;
         }
         ftdi_list_free(&devlist);
     }

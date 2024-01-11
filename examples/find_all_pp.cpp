@@ -46,7 +46,7 @@ int main(int argc, char **argv)
 
     // Print whole list
     Context context;
-    List* list = List::find_all(context, vid, pid);
+    List* list = List::find_all(context, vid, pid, 0, 0);
     for (List::iterator it = list->begin(); it != list->end(); it++)
     {
         std::cout << "FTDI (" << &*it << "): "

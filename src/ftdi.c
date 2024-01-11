@@ -301,13 +301,15 @@ struct ftdi_version_info ftdi_get_library_version(void)
     \param devlist Pointer where to store list of found devices
     \param vendor Vendor ID to search for
     \param product Product ID to search for
+    \param bus Bus number for device
+    \param devaddr device address/number for device
 
     \retval >0: number of devices found
     \retval -3: out of memory
     \retval -5: libusb_get_device_list() failed
     \retval -6: libusb_get_device_descriptor() failed
 */
-int ftdi_usb_find_all(struct ftdi_context *ftdi, struct ftdi_device_list **devlist, int vendor, int product)
+int ftdi_usb_find_all(struct ftdi_context *ftdi, struct ftdi_device_list **devlist, int vendor, int product, int bus, int devaddr)
 {
     struct ftdi_device_list **curdev;
     libusb_device *dev;
@@ -328,12 +330,14 @@ int ftdi_usb_find_all(struct ftdi_context *ftdi, struct ftdi_device_list **devli
         if (libusb_get_device_descriptor(dev, &desc) < 0)
             ftdi_error_return_free_device_list(-6, "libusb_get_device_descriptor() failed", devs);
 
-        if (((vendor || product) &&
-                desc.idVendor == vendor && desc.idProduct == product) ||
-                (!(vendor || product) &&
-                 (desc.idVendor == 0x403) && (desc.idProduct == 0x6001 || desc.idProduct == 0x6010
+        int bn = libusb_get_bus_number(dev);
+        int da = libusb_get_device_address(dev);
+        if ( ( (vendor && (desc.idVendor == vendor)) || (!vendor && (0x0403 == desc.idVendor)) ) &&
+             ( (product && (desc.idProduct == product)) || (!product && (desc.idProduct == 0x6001 || desc.idProduct == 0x6010
                                               || desc.idProduct == 0x6011 || desc.idProduct == 0x6014
-                                              || desc.idProduct == 0x6015)))
+                                              || desc.idProduct == 0x6015)) ) &&
+             ( !bus || (bus == bn) ) &&
+             ( !devaddr || (devaddr == da) )  ) 
         {
             *curdev = (struct ftdi_device_list*)malloc(sizeof(struct ftdi_device_list));
             if (!*curdev)

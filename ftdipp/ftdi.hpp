@@ -178,7 +178,7 @@ public:
     List(struct ftdi_device_list* devlist = 0);
     ~List();
 
-    static List* find_all(Context &context, int vendor, int product);
+    static List* find_all(Context &context, int vendor, int product, int bus, int devaddr);
 
     /// List type storing "Context" objects
     typedef std::list<Context> ListType;

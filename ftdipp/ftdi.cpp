@@ -640,10 +640,10 @@ List::iterator List::erase(iterator beg, iterator end)
     return d->list.erase(beg, end);
 }
 
-List* List::find_all(Context &context, int vendor, int product)
+List* List::find_all(Context &context, int vendor, int product, int bus, int devaddr)
 {
     struct ftdi_device_list* dlist = 0;
-    ftdi_usb_find_all(context.context(), &dlist, vendor, product);
+    ftdi_usb_find_all(context.context(), &dlist, vendor, product, bus, devaddr);
     return new List(dlist);
 }
 

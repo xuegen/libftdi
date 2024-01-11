@@ -81,7 +81,7 @@ int main(int argc, char **argv)
         ftdi_set_interface(ftdi, INTERFACE_ANY);
         struct ftdi_device_list *devlist;
         int res;
-        if ((res = ftdi_usb_find_all(ftdi, &devlist, 0, 0)) < 0)
+        if ((res = ftdi_usb_find_all(ftdi, &devlist, 0, 0, 0, 0)) < 0)
         {
             fprintf(stderr, "No FTDI with default VID/PID found\n");
             goto do_deinit;

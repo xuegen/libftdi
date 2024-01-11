@@ -475,7 +475,7 @@ extern "C"
     struct ftdi_version_info ftdi_get_library_version(void);
 
     int ftdi_usb_find_all(struct ftdi_context *ftdi, struct ftdi_device_list **devlist,
-                          int vendor, int product);
+                          int vendor, int product, int bus, int devaddr);
     void ftdi_list_free(struct ftdi_device_list **devlist);
     void ftdi_list_free2(struct ftdi_device_list *devlist);
     int ftdi_usb_get_dev_desc(struct ftdi_context *ftdi, struct libusb_device *dev, unsigned int fields[], int nfields);
